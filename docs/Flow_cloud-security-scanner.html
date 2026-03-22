@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevOps Flow — cloud-security-scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0F1117; --surface: #1A1D27; --surface2: #22263A; --border: #2A2F45;
+  --text: #E2E8F0; --muted: #64748B; --white: #FFFFFF;
+  --accent: #EF4444; --accent-light: #FCA5A5;
+  --step-ci: #38BDF8; --step-scan: #EF4444; --step-score: #F59E0B;
+  --step-report: #34D399; --step-obs: #A78BFA; --step-gate: #FB923C;
+  --step-critical: #DC2626; --step-high: #EA580C;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Outfit', sans-serif; min-height: 100vh; }
+body::before { content: ''; position: fixed; inset: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"); pointer-events: none; z-index: 0; }
+.page { position: relative; z-index: 1; max-width: 1480px; margin: 0 auto; padding: 48px 32px 80px; }
+
+.header { margin-bottom: 48px; }
+.header-tag { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--accent-light); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.header-tag::before { content: ''; width: 32px; height: 2px; background: var(--accent); border-radius: 2px; }
+.header h1 { font-size: clamp(28px, 3.5vw, 46px); font-weight: 800; line-height: 1.1; color: var(--white); }
+.header h1 span { color: var(--accent-light); }
+.header p { color: var(--muted); font-size: 15px; margin-top: 8px; }
+.badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.badge { font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 4px 12px; border-radius: 6px; border: 1px solid; font-weight: 600; letter-spacing: 1px; }
+
+.legend { display: flex; gap: 20px; flex-wrap: wrap; padding: 14px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 36px; }
+.legend-title { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+.legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+.lanes { display: flex; flex-direction: column; gap: 4px; }
+.section-div { display: flex; align-items: center; gap: 16px; margin: 20px 0 6px 136px; }
+.section-div::before { content: ''; flex: 1; height: 1px; background: var(--border); }
+.section-div span { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; white-space: nowrap; }
+.section-div::after { content: ''; width: 40px; height: 1px; background: var(--border); }
+.lane { display: flex; align-items: stretch; }
+.lane-label { width: 120px; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 16px; }
+.lane-label span { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; text-align: right; }
+.lane-content { flex: 1; display: flex; align-items: center; gap: 10px; min-height: 90px; padding: 10px 0 10px 16px; border-left: 2px solid var(--border); overflow-x: auto; }
+
+.step { position: relative; background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px; padding: 14px 18px; min-width: 170px; max-width: 215px; flex-shrink: 0; transition: transform .15s, box-shadow .15s; cursor: default; }
+.step:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,.45); z-index: 10; }
+.step::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--sc); border-radius: 12px 12px 0 0; }
+.step-num { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--sc); font-weight: 700; letter-spacing: 1px; margin-bottom: 6px; }
+.step-title { font-size: 13px; font-weight: 700; color: var(--white); margin-bottom: 6px; line-height: 1.3; }
+.step-items { list-style: none; }
+.step-items li { font-size: 10px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; padding-left: 10px; position: relative; margin-bottom: 3px; }
+.step-items li::before { content: '›'; position: absolute; left: 0; color: var(--sc); }
+.step[data-tip]:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1E293B; color: var(--text); font-size: 11px; padding: 8px 12px; border-radius: 8px; white-space: normal; max-width: 260px; font-family: 'IBM Plex Mono', monospace; z-index: 100; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,.4); border: 1px solid var(--border); }
+
+.arr { flex-shrink: 0; font-size: 18px; color: var(--cc, var(--muted)); padding: 0 2px; }
+.gateway { display: flex; align-items: center; gap: 8px; background: var(--surface2); border: 2px solid var(--gc, var(--step-gate)); border-radius: 10px; padding: 10px 16px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; color: var(--gc, var(--step-gate)); letter-spacing: 1px; text-transform: uppercase; flex-shrink: 0; }
+
+.parallel-wrap { background: var(--surface2); border: 1.5px dashed var(--border); border-radius: 12px; padding: 16px 14px 14px; position: relative; display: flex; gap: 10px; flex: 1; flex-wrap: wrap; }
+.parallel-label { position: absolute; top: -10px; left: 16px; background: var(--surface2); padding: 0 8px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--step-ci); letter-spacing: 2px; }
+.parallel-wrap .step { flex: 1; min-width: 140px; max-width: none; }
+
+/* Score display */
+.score-band { display: flex; gap: 0; border-radius: 8px; overflow: hidden; margin-top: 24px; height: 36px; }
+.score-band div { flex: 1; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+
+.metrics-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 36px; padding: 20px 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.metric { flex: 1; min-width: 130px; }
+.metric-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+.metric-value { font-size: 24px; font-weight: 800; }
+.metric-sub { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: 'IBM Plex Mono', monospace; }
+
+.footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.footer span { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="header-tag">DevOps Deployment Flow</div>
+    <h1>🔐 <span>cloud-security-scanner</span></h1>
+    <p>Scanner automatizado de segurança multicloud — Security Groups · SOs EOL · Contêineres desatualizados</p>
+    <div class="badges">
+      <span class="badge" style="color:#FCA5A5;border-color:#EF4444;background:rgba(239,68,68,.1)">Python 3.11</span>
+      <span class="badge" style="color:#FF9900;border-color:#FF9900;background:rgba(255,153,0,.1)">AWS</span>
+      <span class="badge" style="color:#F80000;border-color:#F80000;background:rgba(248,0,0,.1)">OCI</span>
+      <span class="badge" style="color:#4285F4;border-color:#4285F4;background:rgba(66,133,244,.1)">GCP</span>
+      <span class="badge" style="color:#F59E0B;border-color:#F59E0B;background:rgba(245,158,11,.1)">CIS Aligned</span>
+      <span class="badge" style="color:#9FEF00;border-color:#9FEF00;background:rgba(159,239,0,.08)">DevSecOps</span>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span class="legend-title">Legenda —</span>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--step-ci)"></div>CI / Validação</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--step-scan)"></div>Scan de Segurança</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--step-score)"></div>Scoring & Classificação</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--step-report)"></div>Relatório</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--step-obs)"></div>Notificação</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#DC2626"></div>Incidente / Resposta</div>
+  </div>
+
+  <div class="lanes">
+
+    <!-- ① CI -->
+    <div class="section-div"><span>① CI — Validação do Scanner em Si</span></div>
+
+    <div class="lane">
+      <div class="lane-label"><span>CI Pipeline</span></div>
+      <div class="lane-content">
+        <div class="step" style="--sc:var(--step-ci)" data-tip="test_sg_scanner.py: mocks da API EC2 — valida que SSH na porta 22 com 0.0.0.0/0 gera CRITICAL, que CIDR interno (10.0.0.0/8) não dispara finding. test_risk_scorer.py: valida pesos, score nunca abaixo de 0.">
+          <div class="step-num">01 · TESTES</div>
+          <div class="step-title">Testes do Scanner</div>
+          <ul class="step-items">
+            <li>pytest + AWS mocks</li>
+            <li>test_risk_scorer.py</li>
+            <li>mypy --strict</li>
+          </ul>
+        </div>
+        <div class="arr" style="--cc:var(--step-ci)">→</div>
+        <div class="step" style="--sc:var(--step-ci)" data-tip="Bandit analisa o código Python do scanner em busca de vulnerabilidades (ex: uso de subprocess sem sanitização). Gitleaks garante que AWS_ACCESS_KEY_ID não aparece no histórico Git.">
+          <div class="step-num">02 · SAST</div>
+          <div class="step-title">Análise Segurança</div>
+          <ul class="step-items">
+            <li>Bandit SAST</li>
+            <li>Gitleaks</li>
+            <li>Coverage ≥80%</li>
+          </ul>
+        </div>
+        <div class="arr" style="--cc:var(--step-gate)">→</div>
+        <div class="gateway" style="--gc:var(--step-gate)">🔷 QUALITY GATE</div>
+      </div>
+    </div>
+
+    <!-- ② SCAN -->
+    <div class="section-div"><span>② Execução do Scan — Diário ou On-Demand</span></div>
+
+    <div class="lane">
+      <div class="lane-label"><span>Scanner</span></div>
+      <div class="lane-content">
+        <div class="step" style="--sc:var(--step-scan)" data-tip="GitHub Actions cron diário às 03h UTC. Credenciais via IAM Role — sem Access Keys armazenados. Executa: python main.py --clouds all --output reports/ --format both">
+          <div class="step-num">03 · TRIGGER</div>
+          <div class="step-title">Iniciar Scan</div>
+          <ul class="step-items">
+            <li>GitHub Actions cron</li>
+            <li>IAM Role (sem chave)</li>
+            <li>--clouds all</li>
+          </ul>
+        </div>
+        <div class="arr" style="--cc:var(--step-scan)">→</div>
+        <div class="parallel-wrap">
+          <span class="parallel-label">⟳ paralelo — por tipo de check</span>
+          <div class="step" style="--sc:var(--step-scan)" data-tip="AWSSGScanner: percorre todos os Security Groups via paginação EC2 API. Detecta: protocolo -1 aberto (CRITICAL), portas críticas SSH/RDP/DB expostas a 0.0.0.0/0 (CRITICAL) e portas de alto risco FTP/Telnet/SMB (HIGH).">
+            <div class="step-num">04a · SG SCAN</div>
+            <div class="step-title">Security Groups</div>
+            <ul class="step-items">
+              <li>DescribeSecurityGroups</li>
+              <li>14 portas críticas</li>
+              <li>0.0.0.0/0 detection</li>
+            </ul>
+          </div>
+          <div class="step" style="--sc:var(--step-scan)" data-tip="AWSOSScanner: lista todas as instâncias EC2 running. Extrai SO via tag 'os', campo Platform ou nome da AMI. Compara com lista de padrões EOL (Ubuntu 14-18, CentOS 6-8, RHEL 6-7, Windows 2008-2016).">
+            <div class="step-num">04b · OS SCAN</div>
+            <div class="step-title">SO Desatualizado</div>
+            <ul class="step-items">
+              <li>DescribeInstances</li>
+              <li>EOL pattern match</li>
+              <li>Near-EOL detection</li>
+            </ul>
+          </div>
+          <div class="step" style="--sc:var(--step-scan)" data-tip="AWSContainerScanner: lista tasks ECS e suas task definitions. Detecta runtimes EOL (Node 14/12, Python 3.7/3.8, Java 8) como HIGH e tags não imutáveis (latest, dev, test) como MEDIUM.">
+            <div class="step-num">04c · CTR SCAN</div>
+            <div class="step-title">Contêineres ECS</div>
+            <ul class="step-items">
+              <li>ListTasks + Describe</li>
+              <li>Runtime EOL check</li>
+              <li>Tag imutabilidade</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ SCORING -->
+    <div class="section-div"><span>③ Scoring, Classificação e Relatório</span></div>
+
+    <div class="lane">
+      <div class="lane-label"><span>Scoring</span></div>
+      <div class="lane-content">
+        <div class="step" style="--sc:var(--step-score)" data-tip="risk_scorer.py: score base 100, desconto por finding — CRITICAL -20, HIGH -10, MEDIUM -5, LOW -2. Score calculado globalmente e por cloud/região separadamente. Score mínimo = 0.">
+          <div class="step-num">05 · SCORING</div>
+          <div class="step-title">Calcular Score</div>
+          <ul class="step-items">
+            <li>Base 100 pts</li>
+            <li>CRITICAL -20 pts</li>
+            <li>Score por cloud</li>
+          </ul>
+        </div>
+        <div class="arr" style="--cc:var(--step-score)">→</div>
+        <div class="step" style="--sc:var(--step-score)" data-tip="Classificação por faixa: 80-100 = Seguro (verde), 60-79 = Atenção (amarelo), 40-59 = Alto Risco (laranja), 0-39 = Crítico (vermelho). Cada faixa tem ação definida e SLA de remediação.">
+          <div class="step-num">06 · CLASSIFY</div>
+          <div class="step-title">Classificar Risco</div>
+          <ul class="step-items">
+            <li>🟢 80+ Seguro</li>
+            <li>🟡 60+ Atenção</li>
+            <li>🔴 &lt;40 Crítico</li>
+          </ul>
+        </div>
+        <div class="arr" style="--cc:var(--step-report)">→</div>
+        <div class="step" style="--sc:var(--step-report)" data-tip="report_generator.py: HTML executivo com score visual colorido, cards de severidade por cloud e tabela completa de findings com remediação específica. JSON estruturado para integração com Security Hub ou SIEM.">
+          <div class="step-num">07 · REPORT</div>
+          <div class="step-title">Gerar Relatório</div>
+          <ul class="step-items">
+            <li>HTML executivo</li>
+            <li>JSON estruturado</li>
+            <li>Remediação detalhada</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ④ RESPOSTA -->
+    <div class="section-div"><span>④ Notificação, Resposta e Histórico</span></div>
+
+    <div class="lane">
+      <div class="lane-label"><span>Resposta</span></div>
+      <div class="lane-content">
+        <div class="step" style="--sc:var(--step-obs)" data-tip="Webhook para canal de segurança no Teams/Slack: score atual, delta vs. scan anterior, contagem por severidade e link direto ao relatório HTML no S3/SharePoint.">
+          <div class="step-num">08 · NOTIFY</div>
+          <div class="step-title">Notificação</div>
+          <ul class="step-items">
+            <li>Teams / Slack webhook</li>
+            <li>Score + delta</li>
+            <li>Link ao relatório</li>
+          </ul>
+        </div>
+        <div class="arr" style="--cc:var(--step-obs)">→</div>
+        <div class="gateway" style="--gc:#DC2626">🚨 SCORE &lt; 60?</div>
+        <div class="arr" style="--cc:#DC2626">→</div>
+        <div class="step" style="--sc:#DC2626" data-tip="Se score cair abaixo de 60: abertura automática de GitHub Issue com lista dos findings CRITICAL e HIGH, SLA de remediação (7 dias para CRITICAL, 30 para HIGH) e assignee automático para o Security Lead.">
+          <div class="step-num">09 · INCIDENT</div>
+          <div class="step-title">Abrir Incidente</div>
+          <ul class="step-items">
+            <li>GitHub Issue auto</li>
+            <li>SLA: 7d (CRITICAL)</li>
+            <li>Assign Security Lead</li>
+          </ul>
+        </div>
+        <div class="arr" style="--cc:var(--step-report)">→</div>
+        <div class="step" style="--sc:var(--step-report)" data-tip="Score histórico salvo por data — gráfico de tendência mostra evolução do posture de segurança ao longo do tempo. Evidência para auditorias de compliance (LGPD, HIPAA, GDPR).">
+          <div class="step-num">10 · HISTÓRICO</div>
+          <div class="step-title">Score Trend</div>
+          <ul class="step-items">
+            <li>Score por data</li>
+            <li>Trend de melhoria</li>
+            <li>Evidência compliance</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Score band visual -->
+  <div style="margin-top:32px;">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-bottom:10px;">Escala de Score de Segurança</div>
+    <div class="score-band">
+      <div style="background:#DC2626;color:#fff">0–39 · 🔴 CRÍTICO</div>
+      <div style="background:#EA580C;color:#fff">40–59 · 🟠 ALTO RISCO</div>
+      <div style="background:#CA8A04;color:#fff">60–79 · 🟡 ATENÇÃO</div>
+      <div style="background:#16A34A;color:#fff">80–100 · 🟢 SEGURO</div>
+    </div>
+    <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap;">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)">🔴 Ação imediata — escalar para liderança</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)">🟠 Remediar CRITICALs em 7 dias</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)">🟡 Remediar HIGHs em 30 dias</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)">🟢 Monitoramento contínuo</span>
+    </div>
+  </div>
+
+  <div class="metrics-bar">
+    <div class="metric">
+      <div class="metric-label">Frequência</div>
+      <div class="metric-value" style="color:var(--accent-light)">Diária</div>
+      <div class="metric-sub">GitHub Actions — 03h UTC</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">SLA CRITICAL</div>
+      <div class="metric-value" style="color:#EF4444">7 dias</div>
+      <div class="metric-sub">Remediação obrigatória</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">SLA HIGH</div>
+      <div class="metric-value" style="color:#F59E0B">30 dias</div>
+      <div class="metric-sub">Remediação planejada</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Checks v1.0</div>
+      <div class="metric-value" style="color:#F59E0B">3</div>
+      <div class="metric-sub">SG · OS EOL · Containers</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Portas Críticas</div>
+      <div class="metric-value" style="color:var(--accent)">14</div>
+      <div class="metric-sub">SSH · RDP · DBs · Cache</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Score Alvo</div>
+      <div class="metric-value" style="color:#10b981">≥80</div>
+      <div class="metric-sub">Faixa Seguro — meta</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>cloud-security-scanner · v1.0</span>
+    <span>Ivonaldo Micheluti Dias · Cloud & FinOps Engineer</span>
+    <span>github.com/ivonaldomdias/cloud-security-scanner</span>
+  </div>
+
+</div>
+</body>
+</html>
